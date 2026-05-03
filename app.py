@@ -57,7 +57,7 @@ def create_product():
     }
 
     try:
-        res = supabase.table("products").insert(new_product).execute()
+        res = supabase_client.table("products").insert(new_product).execute()
         return jsonify({"product": res.data}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -71,7 +71,7 @@ def update_product(product_id):
         return jsonify({"error": "No data provided for update"}), 400
 
     try:
-        check = supabase.table("products").select("*").eq("id", product_id).execute()
+        check = supabase_client.table("products").select("*").eq("id", product_id).execute()
         if not check.data:
             return jsonify({"error": "Product not found"}), 404
 
@@ -88,12 +88,10 @@ def update_product(product_id):
         if "thumbnail" in data:
             update_data["thumbnail"] = data["thumbnail"]
 
-        # Running if there are fields to update
         if not update_data:
             return jsonify({"error": "No valid fields to update"}), 400
 
-        # Add the update operation in Supabase
-        res = supabase.table("products").update(update_data).eq("id", product_id).execute()
+        res = supabase_client.table("products").update(update_data).eq("id", product_id).execute()
         return jsonify({
             "message": "Product updated successfully",
             "data": res.data
@@ -105,13 +103,11 @@ def update_product(product_id):
 @app.route("/products/<int:product_id>", methods=["DELETE"])
 def delete_product(product_id):
     try:
-        # Check if the product exists using a select query
-        check = supabase.table("products").select("*").eq("id", product_id).execute()
+        check = supabase_client.table("products").select("*").eq("id", product_id).execute()
         if not check.data:
             return jsonify({"error": "Product not found"}), 404
 
-        # Delete product with matching ID
-        res = supabase.table("products").delete().eq("id", product_id).execute()
+        res = supabase_client.table("products").delete().eq("id", product_id).execute()
         return jsonify({
             "message": "Product deleted successfully",
             "data": res.data
@@ -128,31 +124,28 @@ def checkout():
         return jsonify({"error": "Missing required checkout fields"}), 400
         
     order_record = {
-        "timestamp": datetime.now().isoformat(),
         "name": data.get("name"),
         "room_no": data.get("room_no"),
         "building_number": data.get("building_number"),
-        "order": data.get("order"),
+        "order_items": data.get("order"),
         "payable_amount": data.get("payable_amount", 0)
     }
     
-    # Save as JSON file
-    orders_file = os.path.join(os.path.dirname(__file__), "orders.json")
-    
-    orders = []
-    if os.path.exists(orders_file):
-        with open(orders_file, "r") as f:
-            try:
-                orders = json.load(f)
-            except:
-                orders = []
-                
-    orders.append(order_record)
-    
-    with open(orders_file, "w") as f:
-        json.dump(orders, f, indent=4)
-        
-    return jsonify({"message": "Order saved successfully"}), 201
+    try:
+
+        res = supabase_client.table("orders").insert(order_record).execute()
+        return jsonify({"message": "Order saved successfully", "order": res.data}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/orders", methods=["GET"])
+def get_orders():
+    try:
+        res = supabase_client.table("orders").select("*").order("created_at", desc=True).execute()
+        return jsonify({"orders": res.data}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(port=5005, debug=True)
